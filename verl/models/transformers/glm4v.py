@@ -22,7 +22,7 @@ def get_rope_index(
     video_grid_thw: Optional[torch.LongTensor] = None,
     attention_mask: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
-    spatial_merge_size = processor.spatial_merge_size
+    spatial_merge_size = processor.image_processor.merge_size
     image_token_id = processor.tokenizer.convert_tokens_to_ids("<|image|>")
     video_start_token_id = processor.tokenizer.convert_tokens_to_ids("<|begin_of_video|>")
     video_end_token_id = processor.tokenizer.convert_tokens_to_ids("<|end_of_video|>")
