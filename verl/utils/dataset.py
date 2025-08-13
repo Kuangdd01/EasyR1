@@ -28,6 +28,7 @@ from qwen_vl_utils.vision_process import fetch_video
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer, ProcessorMixin
 
+from ..models.transformers.glm4v import get_rope_index as glm4v_get_rope_index
 from ..models.transformers.qwen2_vl import get_rope_index
 from . import torch_functional as VF
 
@@ -274,6 +275,15 @@ class RLHFDataset(Dataset):
                 second_per_grid_ts=model_inputs.get("second_per_grid_ts", None),
                 attention_mask=attention_mask,
             )  # (3, seq_length)
+        elif self.processor is not None and "Glm4vProcessor" in self.processor.__class__.__name__:
+            # glm4v mrope
+            position_ids = glm4v_get_rope_index(
+                self.processor,
+                input_ids=input_ids,
+                image_grid_thw=model_inputs.get("image_grid_thw", None),
+                video_grid_thw=model_inputs.get("video_grid_thw", None),
+                attention_mask=attention_mask,
+            )
         else:
             position_ids = torch.clip(attention_mask.cumsum(dim=0) - 1, min=0, max=None)  # (seq_length,)
 

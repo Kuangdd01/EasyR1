@@ -28,7 +28,7 @@ from .transformers.qwen2_vl import (
 def apply_ulysses_patch(model_type: str) -> None:
     if model_type in ("llama", "gemma", "gemma2", "mistral", "qwen2", "qwen3", "qwen3_moe"):
         ALL_ATTENTION_FUNCTIONS["flash_attention_2"] = flash_attention_forward
-    elif model_type in ("qwen2_vl", "qwen2_5_vl"):
+    elif model_type in ("qwen2_vl", "qwen2_5_vl", "glm4v"):
         if is_transformers_version_greater_than("4.54.0"):
             # transformers 4.54.0 does not need special patch: https://github.com/huggingface/transformers/pull/39447
             ALL_ATTENTION_FUNCTIONS["flash_attention_2"] = flash_attention_forward
