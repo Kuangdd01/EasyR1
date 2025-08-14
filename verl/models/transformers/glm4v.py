@@ -252,7 +252,7 @@ def decoder_forward(
             cache_position=cache_position,
             **kwargs,
         )
-        hidden_states = layer_outputs
+        hidden_states = layer_outputs[0] if isinstance(layer_outputs, tuple) else layer_outputs
 
     hidden_states = self.norm(hidden_states)
 
