@@ -82,6 +82,8 @@ class DataParallelPPOActor(BasePPOActor):
         multi_modal_inputs = defaultdict(list)
         if "multi_modal_inputs" in micro_batch:
             multi_modal_inputs = batch_collate(micro_batch["multi_modal_inputs"])
+            # glm4v patch
+            multi_modal_inputs["pixel_values"] = [pixel_values.squeeze(0) for pixel_values in multi_modal_inputs["pixel_values"]]
             multi_modal_inputs = {key: torch.cat(value, dim=0) for key, value in multi_modal_inputs.items()}
         else:
             multi_modal_inputs = {}
