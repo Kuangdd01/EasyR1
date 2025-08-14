@@ -1,19 +1,23 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import itertools
 import torch
 
-from ...utils.py_functional import is_transformers_version_greater_than
 from .flash_attention_utils import flash_attention_forward
 
+from transformers.cache_utils import DynamicCache
+from transformers.masking_utils import create_causal_mask
+from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
+from transformers.modeling_outputs import BaseModelOutputWithPast
 from transformers.models.glm4v import Glm4vProcessor
 from transformers.models.glm4v.modeling_glm4v import (
+    Glm4vModel,
+    Glm4vTextModel,
     Glm4vTextAttention,
-    Glm4vCausalLMOutputWithPast,
-    Glm4vForConditionalGeneration,
     apply_multimodal_rotary_pos_emb,
     repeat_kv,
 )
+from transformers.processing_utils import Unpack
 
 def get_rope_index(
     processor: Glm4vProcessor,
@@ -184,36 +188,75 @@ def glm4_vl_attn_forward(
     attn_output = self.o_proj(attn_output)
     return attn_output, None, None
 
-def glm4_vl_forward_new(
-    self: "Glm4vForConditionalGeneration",
-    input_ids: torch.LongTensor,
+## overwrite glm4v text model forward
+def decoder_forward(
+    self: "Glm4vTextModel",
+    input_ids: Optional[torch.LongTensor] = None,
     attention_mask: Optional[torch.Tensor] = None,
     position_ids: Optional[torch.LongTensor] = None,
-    labels: Optional[torch.LongTensor] = None,
-    pixel_values: Optional[torch.FloatTensor] = None,
-    pixel_values_videos: Optional[torch.FloatTensor] = None,
-    image_grid_thw: Optional[torch.LongTensor] = None,
-    video_grid_thw: Optional[torch.LongTensor] = None,
-    **kwargs,
-) -> "Glm4vCausalLMOutputWithPast":
-    outputs = self.model(
-        input_ids=input_ids,
-        pixel_values=pixel_values,
-        pixel_values_videos=pixel_values_videos,
-        image_grid_thw=image_grid_thw,
-        video_grid_thw=video_grid_thw,
-        position_ids=position_ids,
-        attention_mask=attention_mask,
-        **kwargs,
-    )
-    hidden_states = outputs[0]
-    logits = self.lm_head(hidden_states)
+    past_key_values: Optional[list[torch.FloatTensor]] = None,
+    inputs_embeds: Optional[torch.FloatTensor] = None,
+    use_cache: Optional[bool] = None,
+    cache_position: Optional[torch.LongTensor] = None,
+    **kwargs: Unpack[FlashAttentionKwargs],
+) -> Union[tuple, BaseModelOutputWithPast]:
+    if (input_ids is None) ^ (inputs_embeds is not None):
+        raise ValueError("You must specify exactly one of input_ids or inputs_embeds")
 
-    return Glm4vCausalLMOutputWithPast(
-        loss=None,
-        logits=logits,
-        past_key_values=None,
-        hidden_states=None,
-        attentions=None,
-        rope_deltas=None,
+    # torch.jit.trace() doesn't support cache objects in the output
+    if use_cache and past_key_values is None and not torch.jit.is_tracing():
+        past_key_values = DynamicCache()
+
+    if inputs_embeds is None:
+        inputs_embeds = self.embed_tokens(input_ids)
+
+    if cache_position is None:
+        past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
+        cache_position = torch.arange(
+            past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
+        )
+
+    # the hard coded `3` is for temporal, height and width.
+    if position_ids is None:
+        position_ids = cache_position.view(1, 1, -1).expand(3, inputs_embeds.shape[0], -1)
+    elif position_ids.dim() == 2:
+        position_ids = position_ids[None, ...].expand(3, position_ids.shape[0], -1)
+
+    if position_ids.ndim == 3 and position_ids.shape[0] == 4:
+            text_position_ids = position_ids[0]
+            position_ids = position_ids[1:]
+    else:
+        text_position_ids = position_ids[0]
+
+    causal_mask = create_causal_mask(
+        config=self.config,
+        input_embeds=inputs_embeds,
+        attention_mask=attention_mask,
+        cache_position=cache_position,
+        past_key_values=past_key_values,
+        position_ids=text_position_ids,
+    )
+
+    hidden_states = inputs_embeds
+
+    # create position embeddings to be shared across the decoder layers
+    position_embeddings = self.rotary_emb(hidden_states, position_ids)
+
+    for decoder_layer in self.layers:
+        layer_outputs = decoder_layer(
+            hidden_states,
+            position_embeddings=position_embeddings,
+            attention_mask=causal_mask,
+            position_ids=position_ids,
+            past_key_values=past_key_values,
+            cache_position=cache_position,
+            **kwargs,
+        )
+        hidden_states = layer_outputs
+
+    hidden_states = self.norm(hidden_states)
+
+    return BaseModelOutputWithPast(
+        last_hidden_state=hidden_states,
+        past_key_values=past_key_values,
     )
