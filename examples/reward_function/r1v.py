@@ -15,8 +15,6 @@
 import re
 from typing import Any
 
-from mathruler.grader import grade_answer
-
 
 def format_reward(response: str) -> float:
     pattern = re.compile(r"<think>.*?</think>\s*<answer>.*?</answer>", re.DOTALL)
@@ -29,7 +27,7 @@ def accuracy_reward(response: str, ground_truth: str) -> float:
         # extract answer from glm4v response
         content_match = re.search(r"<\|begin_of_box\|>(.*?)<\|end_of_box\|>", response)
         given_answer = content_match.group(1).strip() if content_match else response.strip()
-        if grade_answer(given_answer, ground_truth.strip()):
+        if ground_truth.split() in given_answer: # easy check
             return 1.0
 
     except Exception:
