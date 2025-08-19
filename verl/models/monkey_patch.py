@@ -33,11 +33,10 @@ def apply_ulysses_patch(model_type: str) -> None:
         if is_transformers_version_greater_than("4.54.0"):
             # transformers 4.54.0 does not need special patch: https://github.com/huggingface/transformers/pull/39447
             ALL_ATTENTION_FUNCTIONS["flash_attention_2"] = flash_attention_forward
-            # if model_type in ("glm4v"):
-            #     from transformers.models.glm4v.modeling_glm4v import Glm4vTextModel, Glm4vTextAttention
-            #     Glm4vTextAttention.forward = glm4_vl_attn_forward
-            #     Glm4vTextModel.forward = decoder_forward
-            #     print("using the patch of non-batch forward...")
+            if model_type in ("glm4v"):
+                from transformers.models.glm4v.modeling_glm4v import Glm4vTextModel, Glm4vTextAttention
+                Glm4vTextAttention.forward = glm4_vl_attn_forward
+                Glm4vTextModel.forward = decoder_forward
 
         elif is_transformers_version_greater_than("4.53.0"):
             raise NotImplementedError("Transformers 4.53.* is not compatible with Qwen2-VL. Use 4.54.0 or later.")
