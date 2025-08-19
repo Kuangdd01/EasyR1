@@ -16,7 +16,7 @@ from transformers.models.glm4v.modeling_glm4v import (
     apply_multimodal_rotary_pos_emb,
     repeat_kv,
 )
-from transformers.processing_utils import Unpack
+from typing_extensions import Unpack
 
 def get_rope_index(
     processor: Glm4vProcessor,
