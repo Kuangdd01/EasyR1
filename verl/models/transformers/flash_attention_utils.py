@@ -126,6 +126,10 @@ def _custom_flash_attention_forward(
         )
         attn_output = attn_output.view(batch_size, -1, attn_output.size(-2), attn_output.size(-1))
     else:
+        if dist.get_rank == 0:
+            breakpoint()
+        else:
+            dist.barrier(group=get_ulysses_sequence_parallel_group())
         attn_output = _flash_attention_forward(
             query_states,
             key_states,
