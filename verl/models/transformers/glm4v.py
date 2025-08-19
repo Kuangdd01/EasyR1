@@ -165,14 +165,6 @@ def glm4_vl_attn_forward(
     value_states = repeat_kv(value_states, self.num_key_value_groups)
     dropout_rate = 0.0 if not self.training else self.attention_dropout
 
-    sliding_window = None
-    if (
-        self.config.use_sliding_window
-        and getattr(self.config, "sliding_window", None) is not None
-        and self.layer_idx >= self.config.max_window_layers
-    ):
-        sliding_window = self.config.sliding_window
-
     attn_output, _ = flash_attention_forward(
         self,
         query_states,
@@ -180,7 +172,7 @@ def glm4_vl_attn_forward(
         value_states,
         attention_mask,
         dropout=dropout_rate,
-        sliding_window=sliding_window,
+        sliding_window=None,
         position_ids=position_ids[0],  # important: pass position ids
     )  # (batch_size, seq_length, num_head / sp_size, head_size)
     attn_output = attn_output.reshape(bsz, q_len, self.hidden_size).contiguous()
@@ -235,7 +227,7 @@ def decoder_forward(
         past_key_values=past_key_values,
         position_ids=text_position_ids,
     )
-
+    # FIXME here casual_mask in None
     hidden_states = inputs_embeds
 
     # create position embeddings to be shared across the decoder layers
