@@ -11,7 +11,6 @@ from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
 from transformers.modeling_outputs import BaseModelOutputWithPast
 from transformers.models.glm4v import Glm4vProcessor
 from transformers.models.glm4v.modeling_glm4v import (
-    Glm4vModel,
     Glm4vTextModel,
     Glm4vTextAttention,
     apply_multimodal_rotary_pos_emb,

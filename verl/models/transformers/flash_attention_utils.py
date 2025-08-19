@@ -105,6 +105,10 @@ def _custom_flash_attention_forward(
         query_states, key_states, value_states, _, cu_seq_lens, max_seq_lens = prepare_fa2_from_position_ids(
             query_states, key_states, value_states, position_ids
         )
+        if dist.get_rank == 0:
+            breakpoint()
+        else:
+            dist.barrier(group=get_ulysses_sequence_parallel_group())
         cu_seqlens_q, cu_seqlens_k = cu_seq_lens
         max_seqlen_in_batch_q, max_seqlen_in_batch_k = max_seq_lens
         attn_output = flash_attn_varlen_func(
